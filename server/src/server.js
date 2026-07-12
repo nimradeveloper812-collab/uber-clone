@@ -7,6 +7,8 @@ const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/authRoutes");
 const rideRoutes = require("./routes/rideRoutes");
+const driverRoutes = require("./routes/driverRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
 app.use(cors());
@@ -17,6 +19,7 @@ connectDB();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
+// req.io inject karo — sab routes se pehle
 app.use((req, res, next) => {
   req.io = io;
   next();
@@ -25,6 +28,8 @@ app.use((req, res, next) => {
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 app.use("/api/auth", authRoutes);
 app.use("/api/rides", rideRoutes);
+app.use("/api/drivers", driverRoutes);
+app.use("/api/admin", adminRoutes);
 
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
