@@ -10,6 +10,8 @@ const rideRoutes = require("./routes/rideRoutes");
 const driverRoutes = require("./routes/driverRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 
+
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -31,11 +33,25 @@ app.use("/api/rides", rideRoutes);
 app.use("/api/drivers", driverRoutes);
 app.use("/api/admin", adminRoutes);
 
+const Driver = require("./models/Driver");
+
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 
-  socket.on("driverLocationUpdate", (data) => {
-    socket.broadcast.emit("driverLocation", data);
+  socket.on("driverLocationUpdate", async (data) => {
+    // data: { driverId, lat, lng }
+    try {
+      if (data.driverId) {
+        await Driver.findOneAndUpdate(
+          { user: data.driverId },
+          { currentLocation: { lat: data.lat, lng: data.lng } }
+        );
+      }
+    } catch (err) {
+      console.error("Location update failed:", err.message);
+    }
+    // sab clients ko bhejo (driverId ke sath, taake passenger map update kar sake)
+    io.emit("driverLocation", data);
   });
 
   socket.on("disconnect", () => {

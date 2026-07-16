@@ -81,3 +81,18 @@ const getRideHistory = async (req, res) => {
 };
 
 module.exports = { requestRide, acceptRide, updateRideStatus, getRideHistory };
+
+
+// GET /api/rides/pending  (driver ke liye — sab open requests)
+const getPendingRides = async (req, res) => {
+  try {
+    const rides = await Ride.find({ status: "requested" })
+      .populate("passenger", "name phone")
+      .sort({ createdAt: -1 });
+    res.json(rides);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { requestRide, acceptRide, updateRideStatus, getRideHistory, getPendingRides };

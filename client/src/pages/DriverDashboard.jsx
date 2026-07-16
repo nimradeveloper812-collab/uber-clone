@@ -1,32 +1,49 @@
 import { useEffect, useState } from "react";
 import api from "../api/axios";
 import io from "socket.io-client";
+import { useAuth } from "../context/AuthContext";
 
 const socket = io(import.meta.env.VITE_SOCKET_URL || "http://localhost:5000");
 
 export default function DriverDashboard() {
   const [requests, setRequests] = useState([]);
   const [online, setOnline] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // existing pending requests load (reload pe bhi dikhein)
+  useEffect(() => {
+    api.get("/rides/pending").then(({ data }) => setRequests(data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     socket.on("newRideRequest", (ride) => {
-      setRequests((prev) => [...prev, ride]);
+      setRequests((prev) => [ride, ...prev]);
+      if (Notification.permission === "granted") {
+        new Notification("New Ride Request! 🚕", { body: `Fare: Rs. ${ride.fare}` });
+      }
     });
     return () => socket.off("newRideRequest");
   }, []);
 
   useEffect(() => {
-    if (!online) return;
+    if (!online || !user?.id) return;
     const interval = setInterval(() => {
       navigator.geolocation?.getCurrentPosition((pos) => {
         socket.emit("driverLocationUpdate", {
+          driverId: user.id,
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
         });
       });
     }, 5000);
     return () => clearInterval(interval);
-  }, [online]);
+  }, [online, user]);
 
   const acceptRide = async (id) => {
     try {
@@ -37,32 +54,25 @@ export default function DriverDashboard() {
     }
   };
 
-  const declineRide = (id) => {
-    setRequests((prev) => prev.filter((r) => r._id !== id));
-  };
+  const declineRide = (id) => setRequests((prev) => prev.filter((r) => r._id !== id));
 
   return (
     <div style={styles.page}>
       <div style={styles.card}>
         <div style={styles.headerRow}>
           <h2 style={styles.heading}>Driver Dashboard</h2>
-          <button
-            onClick={() => setOnline(!online)}
-            style={{ ...styles.statusBtn, background: online ? "#22c55e" : "#4b5563" }}
-          >
+          <button onClick={() => setOnline(!online)} style={{ ...styles.statusBtn, background: online ? "#22c55e" : "#4b5563" }}>
             {online ? "🟢 Online" : "⚪ Offline"}
           </button>
         </div>
 
-        {requests.length === 0 && (
-          <p style={styles.empty}>No ride requests yet — waiting for passengers...</p>
-        )}
+        {requests.length === 0 && <p style={styles.empty}>No ride requests yet — waiting for passengers...</p>}
 
         {requests.map((r) => (
           <div key={r._id} style={styles.rideCard}>
             <div>
               <p style={styles.route}>{r.pickup?.address || "Pickup"} → {r.drop?.address || "Drop"}</p>
-              <p style={styles.meta}>{r.distanceKm} km • Rs. {r.fare}</p>
+              <p style={styles.meta}>{r.passenger?.name || "Passenger"} • {r.distanceKm} km • Rs. {r.fare}</p>
             </div>
             <div style={styles.actions}>
               <button style={styles.acceptBtn} onClick={() => acceptRide(r._id)}>Accept</button>
